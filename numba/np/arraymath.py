@@ -919,38 +919,52 @@ def np_nanmean(a):
     return nanmean_impl
 
 
+@register_jitable
+def compute_sum_of_square_diffs(a, isnan):
+    m = np.nanmean(a)
+    ssd = 0
+    count = 0
+    for view in np.nditer(a):
+        v = view.item()
+        if not isnan(v):
+            val = (v.item() - m)
+            ssd += np.real(val * np.conj(val))
+            count += 1
+    return ssd, count
+
+
 @overload(np.nanvar)
-def np_nanvar(a):
+def np_nanvar(a, ddof=0):
     if not isinstance(a, types.Array):
         return
+    
+    if not isinstance(ddof, (types.Integer, types.Float, types.NoneType)):
+        return
+
     isnan = get_isnan(a.dtype)
 
-    def nanvar_impl(a):
+    def nanvar_impl(a, ddof=0):
         # Compute the mean
         m = np.nanmean(a)
-
-        # Compute the sum of square diffs
-        ssd = 0.0
-        count = 0
-        for view in np.nditer(a):
-            v = view.item()
-            if not isnan(v):
-                val = (v.item() - m)
-                ssd += np.real(val * np.conj(val))
-                count += 1
+        ssd, count = compute_sum_of_square_diffs(a, isnan)
+        count = count - ddof
+        if count <= 0:
+            return np.inf
         # np.divide() doesn't raise ZeroDivisionError
-        return np.divide(ssd, count)
+        return np.divide(ssd, (count - ddof))
 
     return nanvar_impl
 
 
 @overload(np.nanstd)
-def np_nanstd(a):
+def np_nanstd(a, ddof=0):
     if not isinstance(a, types.Array):
         return
+    if not isinstance(ddof, (types.Integer, types.Float, types.NoneType)):
+        return
 
-    def nanstd_impl(a):
-        return np.nanvar(a) ** 0.5
+    def nanstd_impl(a, ddof=0):
+        return np.nanvar(a, ddof) ** 0.5
 
     return nanstd_impl
 
