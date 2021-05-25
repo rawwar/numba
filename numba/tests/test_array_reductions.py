@@ -110,11 +110,11 @@ def array_nansum(arr):
 def array_nanprod(arr):
     return np.nanprod(arr)
 
-def array_nanstd(arr):
-    return np.nanstd(arr)
+def array_nanstd(arr, ddof):
+    return np.nanstd(arr, ddof)
 
-def array_nanvar(arr):
-    return np.nanvar(arr)
+def array_nanvar(arr, ddof):
+    return np.nanvar(arr, ddof)
 
 def array_nanmedian_global(arr):
     return np.nanmedian(arr)
@@ -290,10 +290,28 @@ class TestArrayReductions(MemoryLeakMixin, TestCase):
         self.check_reduction_basic(array_nanprod)
 
     def test_nanstd_basic(self):
-        self.check_reduction_basic(array_nanstd)
+        pyfunc = array_nanstd
+        self.check_reduction_basic(pyfunc, ddof=0)
+        self.check_nanstd_ddof(pyfunc)
 
     def test_nanvar_basic(self):
-        self.check_reduction_basic(array_nanvar, prec='double')
+        pyfunc = array_nanvar
+        self.check_reduction_basic(pyfunc, prec='double')
+        self.check_nanvar_ddof(pyfunc)
+
+    def check_nanstd_ddof(self, pyfunc):
+        cfunc = jit(nopython=True)(pyfunc)
+        def check(arr, ddof):
+            expected = pyfunc(arr, ddof)
+            got = cfunc(arr, ddof)
+            self.assertPreciseEqual(got, expected)
+        
+        
+
+
+    def check_nanvar_ddof(self, pyfunc):
+        cfunc = jit(nopython=True)(pyfunc)
+
 
     def check_median_basic(self, pyfunc, array_variations):
         cfunc = jit(nopython=True)(pyfunc)
