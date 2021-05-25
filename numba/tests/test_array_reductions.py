@@ -1,4 +1,5 @@
 from itertools import product, combinations_with_replacement
+from os import replace
 
 import numpy as np
 
@@ -110,11 +111,11 @@ def array_nansum(arr):
 def array_nanprod(arr):
     return np.nanprod(arr)
 
-def array_nanstd(arr, ddof):
-    return np.nanstd(arr, ddof)
+def array_nanstd(arr, ddof=0):
+    return np.nanstd(arr, ddof=ddof)
 
-def array_nanvar(arr, ddof):
-    return np.nanvar(arr, ddof)
+def array_nanvar(arr, ddof=0):
+    return np.nanvar(arr, ddof=ddof)
 
 def array_nanmedian_global(arr):
     return np.nanmedian(arr)
@@ -292,25 +293,45 @@ class TestArrayReductions(MemoryLeakMixin, TestCase):
     def test_nanstd_basic(self):
         pyfunc = array_nanstd
         self.check_reduction_basic(pyfunc, ddof=0)
-        self.check_nanstd_ddof(pyfunc)
+        self.check_ddof(pyfunc)
 
     def test_nanvar_basic(self):
         pyfunc = array_nanvar
         self.check_reduction_basic(pyfunc, prec='double')
-        self.check_nanvar_ddof(pyfunc)
+        self.check_ddof(pyfunc)
 
-    def check_nanstd_ddof(self, pyfunc):
+    def check_ddof(self, pyfunc):
         cfunc = jit(nopython=True)(pyfunc)
         def check(arr, ddof):
             expected = pyfunc(arr, ddof)
             got = cfunc(arr, ddof)
             self.assertPreciseEqual(got, expected)
         
-        
+        def check_int(i):
+            arr = np.random.randint(-i,i,i)
+            ddof = np.random.randint(-i,i,5)
+            arr[np.random.choice(arr.size,arr.size//2,replace=False)] = np.nan
+            check(arr, ddof)
 
+        def check_float(arr, ddof):
+            arr = np.random.uniform(-i,i,i)
+            ddof = np.random.randint(-i,i,5)
+            arr[np.random.choice(arr.size,arr.size//2,replace=False)] = np.nan
+            check(arr, ddof)
 
-    def check_nanvar_ddof(self, pyfunc):
-        cfunc = jit(nopython=True)(pyfunc)
+        for i in [10,100,1000]:
+            check_int(i)
+            check_float(i)
+
+        def check_edge_case():
+            arr = [np.array([1.0, 15.0, 10, np.inf, 10])]
+            arr += [np.array([np.nan, np.nan])]
+            arr += [np.array([np.inf, np.NINF])]
+            ddof = np.random.randint(-100,100)
+            for a in arr:
+                check(a, ddof)
+
+        check_edge_case()
 
 
     def check_median_basic(self, pyfunc, array_variations):
